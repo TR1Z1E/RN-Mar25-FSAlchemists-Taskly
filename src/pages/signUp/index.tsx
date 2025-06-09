@@ -35,92 +35,101 @@ export default function SingUp() {
 
   const navigation = useNavigation();
 
-  const users = async () => {
-    let hasError = false;
+ const users = async () => {
+  let hasError = false;
 
-    if (nome.trim().split(" ").length < 2) {
-      setErroNome("Digite seu nome e sobrenome");
-      hasError = true;
-    } else {
-      setErroNome("");
-    }
+  // Validações (mantidas como já estão)
+  if (nome.trim().split(" ").length < 2) {
+    setErroNome("Digite seu nome e sobrenome");
+    hasError = true;
+  } else {
+    setErroNome("");
+  }
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setErroEmail("Digite um e-mail válido");
-      hasError = true;
-    } else {
-      setErroEmail("");
-    }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    setErroEmail("Digite um e-mail válido");
+    hasError = true;
+  } else {
+    setErroEmail("");
+  }
 
-    if (numero.replace(/\D/g, "").length < 11) {
-      setErroNumero("Digite o número com o DDD");
-      hasError = true;
-    } else {
-      setErroNumero("");
-    }
+  if (numero.replace(/\D/g, "").length < 11) {
+    setErroNumero("Digite o número com o DDD");
+    hasError = true;
+  } else {
+    setErroNumero("");
+  }
 
-    if (senha.length < 8) {
-      setErroSenha("A senha precisa ter no mínimo 8 caracteres");
-      hasError = true;
-    } else {
-      setErroSenha("");
-    }
+  if (senha.length < 8) {
+    setErroSenha("A senha precisa ter no mínimo 8 caracteres");
+    hasError = true;
+  } else {
+    setErroSenha("");
+  }
 
-    if (senha !== cSenha) {
-      setErroCSenha("As senhas não coincidem!");
-      hasError = true;
-    } else {
-      setErroCSenha("");
-    }
+  if (senha !== cSenha) {
+    setErroCSenha("As senhas não coincidem!");
+    hasError = true;
+  } else {
+    setErroCSenha("");
+  }
 
-    if (hasError) return;
+  if (hasError) return;
 
-    try {
-      const storedUsers = await AsyncStorage.getItem('users');
-      const parsedUsers = storedUsers ? JSON.parse(storedUsers) : [];
-
-      console.log(storedUsers)
-
-      const emailExists = parsedUsers.some(user => user.email === email);
-      if (emailExists) {
-        setErroEmail("Esse e-mail já está cadastrado!");
-        return;
-      }
-
-      const newUser = {
-        id: Date.now(),
-        nome,
+  try {
+    const response = await fetch('http://15.229.43.81:3000/auth/register', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
         email,
-        numero,
-        senha,
-      };
+        password: senha,
+        name: nome,
+        phone_number: numero,
+      }),
+    });
 
-      const updatedUsers = [...parsedUsers, newUser];
-      await AsyncStorage.setItem('users', JSON.stringify(updatedUsers));
+    let data;
+const contentType = response.headers.get("content-type");
 
-      
-      await AsyncStorage.setItem("loggedUserEmail", email);
-      await AsyncStorage.setItem("loggedUserNome", nome);
-      await AsyncStorage.setItem("loggedUserNumero", numero);
+if (contentType && contentType.includes("application/json")) {
+  data = await response.json();
+} else {
+  const text = await response.text();
+  console.log("Erro texto da API:", text);
+  throw new Error(text || "Erro inesperado do servidor.");
+}
 
-      setNome("");
-      setEmail("");
-      setNumero("");
-      setSenha("");
-      setCSenha("");
+if (!response.ok) {
+  console.log("Erro JSON da API:", data);
+  throw new Error(data.message || "Erro ao registrar usuário");
+}
 
-      openModal();
+    await AsyncStorage.setItem("authToken", data.idToken);
+    await AsyncStorage.setItem("uid", data.uid);
+    await AsyncStorage.setItem("loggedUserEmail", email);
+    await AsyncStorage.setItem("loggedUserNome", nome);
+    await AsyncStorage.setItem("loggedUserNumero", numero);
 
-      setTimeout(() => {
-        closeModal();
-        navigation.navigate("avatarSelect");
-      }, 1500);
+    setNome("");
+    setEmail("");
+    setNumero("");
+    setSenha("");
+    setCSenha("");
 
-    } catch (error) {
-      Alert.alert("Erro ao salvar dados!");
-      console.error(error);
-    }
-  };
+    openModal();
+
+    setTimeout(() => {
+      closeModal();
+      navigation.navigate("avatarSelect");
+    }, 1500);
+
+  } catch (error) {
+    Alert.alert("Erro no cadastro", error.message);
+    console.error("Erro no cadastro:", error);
+  }
+};
 
   return (
     <View style={styles.container}>

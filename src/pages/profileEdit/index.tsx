@@ -1,15 +1,15 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, Image } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Image, Alert } from 'react-native';
 import { useNavigation } from "@react-navigation/native";
-import { useTheme } from '../../pages/preferencesMenu/themeContext'; // Importe o useTheme
-import getStyles from './style'; // Importe a função getStyles
+import { useTheme } from '../../pages/preferencesMenu/themeContext'; 
+import getStyles from './style'; 
 import ChevronLeftIcon from '../../assets/icons/ChevronLeft.png';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const ProfileEdit: React.FC = () => {
   const navigation = useNavigation();
-  const { theme } = useTheme(); // Obtenha o tema do contexto
-  const styles = getStyles(theme); // Obtenha os estilos com o tema atual
+  const { theme } = useTheme();
+  const styles = getStyles(theme); 
   const [originalEmail, setOriginalEmail] = useState('');
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -35,66 +35,90 @@ const ProfileEdit: React.FC = () => {
     console.log('Voltar pressionado');
   };
 
-  const handleContinueButton = async () => {
-    if (isEmailValid(email) && isFullnameValid(fullName) && isPhoneNumberValid(phoneNumber)) {
-      try {
-        const storedUsers = await AsyncStorage.getItem("users");
-        const parsedUsers = storedUsers ? JSON.parse(storedUsers) : [];
+const handleContinueButton = async () => {
+  if (isEmailValid(email) && isFullnameValid(fullName) && isPhoneNumberValid(phoneNumber)) {
+    try {
+      const token = await AsyncStorage.getItem("authToken");
 
-        const updatedUsers = parsedUsers.map((user: any) => {
-          if (user.email === originalEmail) {
-            return {
-              ...user,
-              nome: fullName,
-              email: email,
-              numero: phoneNumber,
-            };
-          }
-          return user;
-        });
-
-        await AsyncStorage.setItem("users", JSON.stringify(updatedUsers));
-        await AsyncStorage.setItem("loggedUserNome", fullName);
-        await AsyncStorage.setItem("loggedUserNumero", phoneNumber);
-        await AsyncStorage.setItem("loggedUserEmail", email); // opcional
-
-        console.log("Perfil atualizado com sucesso!");
-        setIsFormValid(true);
-
-        navigation.navigate('avatarEdit', {
-          nomeCompleto: fullName,
-          email: email,
-          numero: phoneNumber,
-        });
-      } catch (error) {
-        console.error("Erro ao atualizar perfil:", error);
+      if (!token) {
+        Alert.alert("Erro", "Usuário não autenticado.");
+        return;
       }
-    } else {
-      setIsFormValid(false);
-      console.log('Validação falhou, não salvando.');
+
+      const response = await fetch('http://15.229.43.81:3000/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          name: fullName,
+          phone_number: phoneNumber,
+          picture: 'avatar_1'
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("Erro da API:", errorData);
+        Alert.alert("Erro ao atualizar perfil", errorData.message || "Tente novamente.");
+        return;
+      }
+      await AsyncStorage.setItem("loggedUserNome", fullName);
+      await AsyncStorage.setItem("loggedUserNumero", phoneNumber);
+
+      navigation.navigate('avatarEdit', {
+        nomeCompleto: fullName,
+        email: email,
+        numero: phoneNumber,
+      });
+
+    } catch (error) {
+      console.error("Erro ao enviar dados:", error);
+      Alert.alert("Erro interno", "Não foi possível atualizar o perfil.");
+    }
+  } else {
+    setIsFormValid(false);
+  }
+};
+
+  useEffect(() => {
+  const carregarPerfil = async () => {
+    try {
+      const token = await AsyncStorage.getItem("authToken");
+
+      if (!token) {
+        Alert.alert("Erro", "Usuário não autenticado.");
+        return;
+      }
+
+      const response = await fetch('http://15.229.43.81:3000/profile', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        console.error("Erro ao buscar perfil:", await response.text());
+        Alert.alert("Erro ao carregar perfil.");
+        return;
+      }
+
+      const data = await response.json();
+      setFullName(data.name);
+      setEmail(data.email);
+      setPhoneNumber(data.phone_number);
+      
+    } catch (error) {
+      console.error("Erro na requisição:", error);
+      Alert.alert("Erro", "Não foi possível carregar o perfil.");
     }
   };
 
-  useEffect(() => {
-    const carregarDadosUsuario = async () => {
-      const emailLogado = await AsyncStorage.getItem("loggedUserEmail");
-      const usuariosArmazenados = await AsyncStorage.getItem("users");
+  carregarPerfil();
+}, []);
 
-      if (emailLogado && usuariosArmazenados) {
-        const listaUsuarios = JSON.parse(usuariosArmazenados);
-        const usuario = listaUsuarios.find((u: any) => u.email === emailLogado);
-
-        if (usuario) {
-          setFullName(usuario.nome);
-          setEmail(usuario.email);
-          setOriginalEmail(usuario.email); // aqui
-          setPhoneNumber(usuario.numero);
-        }
-      }
-    };
-
-    carregarDadosUsuario();
-  }, []);
 
   return (
     <View style={styles.container}>
